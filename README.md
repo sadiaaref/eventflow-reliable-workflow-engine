@@ -26,3 +26,14 @@ Client -> idempotent submit -> durable queue -> atomic lease -> worker
                                       +-> outbox on success
 
 This is intentionally complementary to the SRE project: it executes work reliably rather than diagnosing production incidents.
+
+## 🧪 Testing
+
+The project includes tests covering the core reliability mechanisms,
+including job submission, idempotency, retries, worker leases,
+failure handling, and job state transitions.
+
+Run the test suite with:
+
+```bash
+pytest -q
