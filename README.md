@@ -1,14 +1,17 @@
-EventFlow
 
-Reliable Workflow Engine built with Python and SQLite
+# EventFlow — Reliable Workflow Engine
 
-EventFlow is a workflow/job execution engine focused on reliable background processing.
+**A durable asynchronous job execution engine built with Python and SQLite.**
+
+EventFlow is a workflow and job execution engine focused on reliable background processing.
 
 It supports concurrent workers, job scheduling, retries, idempotent execution, failure recovery, priority-based processing, and persistent job state without relying on an external message broker.
 
-The project was built to explore how a reliable job execution system handles concurrency, worker failures, retries, and process restarts.
+The project explores how reliable job execution systems handle concurrency, worker failures, retries, and process restarts.
 
-Why I Built This
+---
+
+## Why I Built This
 
 A basic background-job system is straightforward until failures and concurrency become part of the problem.
 
@@ -23,156 +26,108 @@ EventFlow focuses on questions such as:
 
 The database acts as the persistent source of job state, while workers coordinate execution through that state.
 
-Architecture
+---
 
-                         EVENTFLOW
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │ Job Manager │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │ SQLite + WAL│
-                     │  Job State  │
-                     └──────┬──────┘
-                            │
-                     Atomic Claiming
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │   Workers   │
-                     └──────┬──────┘
-                            │
-                  ┌─────────┴─────────┐
-                  │                   │
-               Success              Failure
-                  │                   │
-                  ▼                   ▼
-             Completed          Retry + Backoff
-                                      │
-                                      ▼
-                                  Retry Job
-                                      │
-                              Max Retries?
-                               │         │
-                              No        Yes
-                               │         │
-                               └────┐    ▼
-                                    │  Dead Letter
-                                    │
-                                    └──→ Retry
+## Architecture
 
-Main Flow
+```mermaid
+flowchart TD
+    A[Job Request] --> B[Job Manager]
+    B --> C[(SQLite + WAL)]
+    C --> D[Atomic Job Claiming]
+    D --> E[Concurrent Workers]
+    E --> F{Execution Result}
+    F -->|Success| G[Completed]
+    F -->|Failure| H[Retry + Backoff]
+    H --> I{Maximum Retries Reached?}
+    I -->|No| J[Schedule Retry]
+    J --> C
+    I -->|Yes| K[Dead-Letter Queue]
+```
 
-Job Request
-     │
-     ▼
-Store Job
-     │
-     ▼
-Worker Claims Job
-     │
-     ▼
-Execute Job
-     │
- ┌───┴───────────┐
- │               │
- ▼               ▼
-Success        Failure
- │               │
- ▼               ▼
-Completed   Retry + Backoff
-                 │
-                 ▼
-            Retry Limit?
-             │        │
-            No       Yes
-             │        │
-             ▼        ▼
-         Retry Job   Dead Letter
+### Main Flow
 
-Reliability Features
+1. A job request is submitted to the job manager.
+2. The job is stored in SQLite.
+3. A worker atomically claims an available job.
+4. The worker executes the job.
+5. Successful jobs are marked as completed.
+6. Failed jobs are rescheduled using a retry strategy.
+7. Jobs exceeding the retry limit are moved to the dead-letter queue.
 
-Concurrent Workers
+---
+
+## Reliability Features
+
+### 1. Concurrent Workers
 
 Multiple workers can process jobs concurrently.
 
-Atomic job claiming is used to coordinate ownership and prevent multiple workers from processing the same job simultaneously.
+Atomic job claiming coordinates ownership and prevents multiple workers from claiming the same job simultaneously.
 
-Retries with Backoff
+### 2. Retries with Backoff
 
 Transient failures can be retried instead of immediately becoming permanent failures.
 
 Backoff prevents repeated failures from causing continuous immediate execution.
 
-Idempotency
+### 3. Idempotency
 
 Jobs may be executed more than once because of retries or recovery.
 
 EventFlow incorporates idempotency into the execution design so repeated execution can be handled safely.
 
-Lease-Based Recovery
+### 4. Lease-Based Recovery
 
 A worker can fail while processing a job.
 
 Leases allow the system to detect work that is no longer actively being processed and make it available for recovery.
 
-Dead-Letter Handling
+### 5. Dead-Letter Handling
 
 Jobs that continue to fail after the allowed retry attempts are moved to a dead-letter state.
 
 This keeps permanently failing jobs out of the normal processing flow.
 
-Priority Scheduling
+### 6. Priority Scheduling
 
 Jobs can be processed according to priority instead of treating every job equally.
 
-Transactional Outbox
+### 7. Transactional Outbox
 
-The transactional outbox pattern is used to keep database changes and outgoing events consistent.
+The transactional outbox pattern helps keep database changes and outgoing events consistent.
 
-Circuit Breaker
+### 8. Circuit Breaker
 
 The circuit breaker helps prevent repeated calls to an unavailable external dependency.
 
-SQLite WAL
+### 9. SQLite WAL
 
 SQLite Write-Ahead Logging is used to improve concurrent database access while keeping the system lightweight.
 
-Job Lifecycle
+---
 
-The job state machine is based on persistent state.
+## Job Lifecycle
 
-Pending
-   │
-   ▼
-Running
-   │
-   ├──────────────► Completed
-   │
-   ▼
- Failed
-   │
-   ▼
- Retry
-   │
-   ▼
- Pending
-
-Failed
-   │
-   ▼
-Max Retries
-   │
-   ▼
-Dead Letter
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Running
+    Running --> Completed: Success
+    Running --> Failed: Execution Error
+    Failed --> Pending: Retry Available
+    Failed --> DeadLetter: Retry Limit Reached
+    Completed --> [*]
+    DeadLetter --> [*]
+```
 
 Persistent job state allows execution and recovery decisions to survive process restarts.
 
-Project Structure
+---
 
+## Project Structure
+
+```text
 eventflow-reliable-workflow-engine/
 │
 ├── src/
@@ -180,10 +135,13 @@ eventflow-reliable-workflow-engine/
 ├── README.md
 ├── requirements.txt
 └── ...
+```
 
 The implementation is organized around job management, worker execution, persistence, and reliability handling.
 
-Testing
+---
+
+## Testing
 
 The project includes tests covering core execution and reliability behaviour.
 
@@ -199,20 +157,28 @@ Areas include:
 
 Run the test suite with:
 
+```bash
 pytest
+```
 
-Tech Stack
+---
 
-- Python — application and execution logic
-- SQLite — persistent job state
-- SQLite WAL — concurrent database access
-- Pytest — testing
-- Docker — containerized development/runtime
-- GitHub Actions — CI
+## Tech Stack
 
-What I Learned
+| Technology | Purpose |
+|---|---|
+| Python | Application and execution logic |
+| SQLite | Persistent job state |
+| SQLite WAL | Concurrent database access |
+| Pytest | Testing |
+| Docker | Containerized development and runtime |
+| GitHub Actions | Continuous integration |
 
-Building EventFlow gave me practical experience with the problems that appear when background processing needs to remain reliable under failure and concurrency.
+---
+
+## What I Learned
+
+Building EventFlow provided practical experience with the problems that arise when background processing needs to remain reliable under failure and concurrency.
 
 Key areas included:
 
@@ -226,7 +192,9 @@ Key areas included:
 - Failure isolation
 - Persistent job state
 
-Future Improvements
+---
+
+## Future Improvements
 
 Possible areas for further development:
 
@@ -237,10 +205,12 @@ Possible areas for further development:
 - More advanced scheduling
 - Operational tooling for inspecting and replaying failed jobs
 
-Author
+---
 
-Sadia Aref
+## Author
+
+**Sadia Aref**
 
 Python Developer | Backend & Software Engineering
 
-"GitHub" (https://github.com/sadiaaref)
+[GitHub Profile](https://github.com/sadiaaref)
