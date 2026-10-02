@@ -61,29 +61,6 @@ A job is created and persisted before a worker starts processing it.
 
 Workers claim available jobs from the database and move them through their lifecycle. Job state, retry information and execution metadata are persisted so that the system can recover from worker failures instead of relying only on in-memory state.
 
-The main flow is:
-
-Create Job
-   ↓
-Persist Job
-   ↓
-Worker Claims Job
-   ↓
-Execute
-   ↓
- ┌───────────────┐
- │               │
-Success         Failure
- │               │
- ↓               ↓
-Completed     Retry / Backoff
-                 ↓
-             Try Again
-                 ↓
-          Max Retries Reached
-                 ↓
-           Dead-Letter Queue
-
 Reliability features
 
 Concurrent worker execution
