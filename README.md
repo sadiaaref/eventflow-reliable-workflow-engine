@@ -21,26 +21,40 @@ EventFlow focuses on questions such as:
 
 The project uses the database as the persistent source of job state and builds the execution logic around that state.
 
-Architecture
+EVENTFLOW
 
-flowchart TD
-    A[Client / API] --> B[Job Manager]
-    B --> C[(SQLite + WAL)]
-    C --> D[Worker Pool]
-
-    D --> E[Job Completed]
-    D --> F[Retry]
-    F --> G[Exponential Backoff]
-    G --> D
-
-    D --> H[Lease / Recovery]
-    D --> I[Dead-Letter Queue]
-
-    C --> J[Transactional Outbox]
-
-    D --> K[Circuit Breaker]
-    K --> L[External Dependency]
-
+              Job / API Request
+                     │
+                     ▼
+              ┌──────────────┐
+              │  Job Manager │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │ SQLite + WAL │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │    Workers   │
+              └──────┬───────┘
+                     │
+             ┌───────┴────────┐
+             ▼                ▼
+        Job succeeds       Job fails
+             │                │
+             ▼                ▼
+         Completed       Retry + Backoff
+                              │
+                              ▼
+                           Retry job
+                              │
+                    Max retries reached
+                              │
+                              ▼
+                       Dead-Letter Queue
+                       
 How it works
 
 A job is created and persisted before a worker starts processing it.
